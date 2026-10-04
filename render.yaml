@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: mblg-coliseu-server-elonghi
+    runtime: node
+    plan: free
+    buildCommand: >-
+      npm --prefix packages/game-engine ci &&
+      npm --prefix packages/game-engine run build &&
+      npm --prefix apps/server ci &&
+      npm --prefix apps/server run build
+    startCommand: npm --prefix apps/server start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.4.1
+
+  - type: web
+    name: mblg-coliseu-web-elonghi
+    runtime: static
+    buildCommand: >-
+      npm --prefix packages/game-engine ci &&
+      npm --prefix packages/game-engine run build &&
+      npm --prefix packages/bot ci &&
+      npm --prefix packages/bot run build &&
+      npm --prefix apps/web ci &&
+      npm --prefix apps/web run build
+    staticPublishPath: apps/web/dist
+    envVars:
+      - key: NODE_VERSION
+        value: 24.4.1
+      - key: VITE_WS_URL
+        value: wss://mblg-coliseu-server-elonghi.onrender.com/ws
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
