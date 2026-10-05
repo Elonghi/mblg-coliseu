@@ -1513,3 +1513,96 @@ button:disabled {
     letter-spacing: 0.06em;
   }
 }
+
+/* Mobile arena: keep card content contained and place deck below the hand. */
+@media (max-width: 620px) {
+  .player-area--human {
+    grid-template-areas:
+      "field"
+      "hand"
+      "resources"
+      "controls";
+    grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.2fr) auto auto;
+  }
+
+  .player-area--human > .field-zone {
+    grid-area: field;
+  }
+
+  .player-area--human > .card-zone {
+    grid-area: hand;
+  }
+
+  .player-area--human > .human-resources {
+    grid-area: resources;
+    justify-content: space-between;
+    padding-top: 0.2rem;
+  }
+
+  .player-area--human > .turn-controls {
+    grid-area: controls;
+  }
+
+  .human-resources > .deck-stack {
+    transform: none;
+  }
+
+  .human-resources .card-back {
+    width: 2.5rem;
+    height: 3.4rem;
+    font-size: 1rem;
+  }
+
+  .land-card {
+    justify-items: center;
+    padding-inline: clamp(0.25rem, 1.5vw, 0.45rem);
+    text-align: center;
+  }
+
+  .land-card__type,
+  .land-card__ability,
+  .land-card__action {
+    width: 100%;
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .land-card__type {
+    overflow: hidden;
+    font-size: clamp(0.5rem, 2.2vw, 0.72rem);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .land-card__symbol {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: clamp(1.35rem, 8vw, 2.4rem);
+    text-align: center;
+  }
+
+  .land-card__ability {
+    font-size: clamp(0.48rem, 1.8vw, 0.58rem);
+    overflow-wrap: anywhere;
+  }
+
+  .land-card__action {
+    padding: 0.2rem 0.1rem;
+    font-size: clamp(0.45rem, 1.7vw, 0.55rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 620px) and (max-height: 560px) {
+  .player-area--human {
+    grid-template-areas:
+      "field"
+      "hand"
+      "controls";
+    grid-template-rows: minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+  }
+}
