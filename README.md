@@ -65,3 +65,27 @@ web com a URL `wss://<host-do-servidor>/ws` e execute um novo deploy do frontend
 > gratuito, ele pode hibernar por inatividade ou reiniciar; nesses casos,
 > partidas em andamento são perdidas. Para uso público estável, altere o plano
 > do servidor para uma instância paga antes de divulgar amplamente.
+
+## Publicação no Coolify
+
+O arquivo `docker-compose.coolify.yml` cria dois serviços:
+
+- `web`: build do React, arquivos estáticos e proxy Nginx;
+- `server`: Fastify e WebSocket, disponível apenas na rede interna.
+
+No Coolify, crie um recurso **Docker Compose** usando a branch `main` e informe
+`/docker-compose.coolify.yml` como caminho do Compose. Associe somente o serviço
+`web`, porta `80`, ao domínio `https://basiclandgame.com`.
+
+O build usa por padrão `wss://basiclandgame.com/ws`. Para outro domínio,
+configure `VITE_WS_URL` como variável de build antes do deploy. Os endpoints
+públicos ficam disponíveis no mesmo domínio:
+
+```text
+https://basiclandgame.com
+https://basiclandgame.com/health
+wss://basiclandgame.com/ws
+```
+
+Mantenha apenas uma réplica do serviço `server`, pois salas e partidas ainda
+são armazenadas em memória.
