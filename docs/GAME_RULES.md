@@ -37,9 +37,13 @@ Não existe mulligan.
 
 A ordem dos jogadores é definida aleatoriamente.
 
+Uma partida pode ter 2 jogadores (`2P`) ou 4 jogadores (`4P`). No modo `4P`, a
+disputa é individual, sem equipes, e os turnos seguem ciclicamente pela ordem da
+partida.
+
 O jogador inicial não compra uma carta no primeiro turno.
 
-O segundo jogador compra normalmente no próprio primeiro turno.
+Os demais jogadores compram normalmente no próprio primeiro turno.
 
 A partir daí, cada jogador compra uma carta no início do próprio turno.
 
@@ -55,7 +59,7 @@ Quando a Ilha é utilizada dessa forma, ela permanece em campo.
 
 Ao baixar uma Montanha no próprio turno:
 
-- o jogador escolhe 1 terreno do adversário;
+- o jogador escolhe 1 terreno de qualquer adversário;
 - esse terreno é destruído;
 - o terreno destruído vai para o cemitério/trash do proprietário.
 
@@ -79,7 +83,8 @@ A Planície permanece em campo.
 
 Ao baixar um Pântano:
 
-- o adversário revela sua mão ao jogador que baixou o Pântano;
+- em `4P`, o controlador escolhe primeiro um adversário;
+- o adversário escolhido revela sua mão ao jogador que baixou o Pântano;
 - o jogador que baixou o Pântano escolhe 1 carta da mão do adversário;
 - a carta escolhida vai para o cemitério/trash do proprietário.
 
@@ -114,7 +119,7 @@ A Ilha permanece em campo.
 
 ### 10.2 Ilha durante o turno do adversário
 
-Quando o adversário tenta baixar um terreno:
+Quando um adversário tenta baixar um terreno:
 
 1. o jogador pode responder baixando uma Ilha;
 2. para utilizar a resposta, deve descartar da própria mão uma carta do mesmo tipo do terreno que está sendo anulado;
@@ -140,7 +145,12 @@ A Ilha pode anular qualquer um dos cinco tipos de terreno, desde que o jogador t
 
 Uma Ilha utilizada como resposta conta como a exceção à regra de um terreno por turno.
 
-Não existe cadeia de múltiplas respostas de Ilha para a mesma ação.
+Em `4P`, cada adversário recebe a oportunidade de responder, seguindo a ordem
+cíclica dos turnos a partir do controlador do terreno. A primeira resposta válida
+com Ilha anula o terreno e encerra a janela. Se todos passarem, o terreno resolve.
+
+Não existe cadeia de múltiplas Ilhas para a mesma ação: depois da primeira
+anulação aceita, nenhum outro jogador pode responder.
 
 Depois que o terreno é anulado, a ação termina.
 
@@ -198,7 +208,16 @@ O jogador só pode visualizar:
 - cartas públicas;
 - cartas reveladas por efeitos.
 
-O adversário não pode receber a mão privada do jogador, exceto durante a resolução do Pântano, quando a mão é revelada ao jogador que ativou o efeito.
+Os adversários não podem receber a mão privada do jogador, exceto durante a
+resolução do Pântano, quando somente a mão do alvo escolhido é revelada ao
+jogador que ativou o efeito.
+
+## 21. Remoção de jogador no multiplayer
+
+Quando o prazo de reconexão termina, somente o jogador desconectado é removido.
+No modo `4P`, a partida continua com os jogadores restantes. Se restar somente
+um jogador, ele é o vencedor. Se o removido era o jogador ativo ou tinha a
+prioridade de resposta da Ilha, a vez/prioridade avança ao próximo jogador ativo.
 
 No multiplayer, o servidor deve enviar visões diferentes do estado para cada jogador.
 

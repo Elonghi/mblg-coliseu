@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import {
   applyAction,
   createGame,
+  removePlayer,
 } from '@mblg-coliseu/game-engine';
 import type {
   DeckSize,
@@ -15,6 +16,8 @@ import {
 } from './protocol.js';
 import type {
   FinishReason,
+  RoomMode,
+  RoomStatePayload,
   RoomStatus,
   ServerMessage,
   WireGameAction,
@@ -36,6 +39,8 @@ export interface RoomSummary {
   readonly code: string;
   readonly status: RoomStatus;
   readonly deckSize: DeckSize;
+  readonly mode: RoomMode;
+  readonly maxPlayers: 2 | 4;
   readonly playerIds: readonly PlayerId[];
   readonly connectedPlayerIds: readonly PlayerId[];
   readonly winnerId: PlayerId | null;
@@ -55,6 +60,8 @@ interface RoomPlayer {
 interface Room {
   readonly code: string;
   readonly deckSize: DeckSize;
+  readonly mode: RoomMode;
+  readonly maxPlayers: 2 | 4;
   readonly players: RoomPlayer[];
   readonly rng: RandomSource;
   status: RoomStatus;
@@ -75,7 +82,7 @@ export interface RoomManagerOptions {
   readonly sessionTokenFactory?: () => string;
   readonly now?: () => number;
   readonly gameFactory?: (
-    playerIds: readonly [PlayerId, PlayerId],
+    playerIds: readonly PlayerId[],
     deckSize: DeckSize,
     rng: RandomSource,
   ) => GameState;
@@ -129,6 +136,7 @@ export class RoomManager {
   createRoom(
     connection: ClientConnection,
     deckSize: DeckSize,
+    mode: RoomMode,
     requestId: string,
   ): PlayerCredentials | null {
     if (this.#membershipForConnection(connection) !== null) {
@@ -137,9 +145,12 @@ export class RoomManager {
     }
     const code = this.#uniqueRoomCode();
     const player = this.#createPlayer(connection);
+    const maxPlayers = mode === '2P' ? 2 : 4;
     const room: Room = {
       code,
       deckSize,
+      mode,
+      maxPlayers,
       players: [player],
       rng: this.#rngFactory(),
       status: 'WAITING',
@@ -151,10 +162,9 @@ export class RoomManager {
       version: PROTOCOL_VERSION,
       type: 'room_created',
       requestId,
-      roomCode: code,
       playerId: player.playerId,
       sessionToken: player.sessionToken,
-      status: room.status,
+      ...this.#roomState(room),
     });
     return { roomCode: code, playerId: player.playerId, sessionToken: player.sessionToken };
   }
@@ -177,28 +187,27 @@ export class RoomManager {
     if (sessionToken !== undefined) {
       return this.#reconnect(room, connection, sessionToken, requestId);
     }
-    if (room.status !== 'WAITING' || room.players.length >= 2) {
+    if (room.gameState !== null || room.players.length >= room.maxPlayers) {
       sendError(connection, requestId, 'ROOM_FULL', 'Room cannot accept another player.');
       return null;
     }
 
     const player = this.#createPlayer(connection);
     room.players.push(player);
-    room.status = 'READY';
+    room.status = room.players.length === room.maxPlayers ? 'READY' : 'WAITING';
     connection.send({
       version: PROTOCOL_VERSION,
       type: 'room_joined',
       requestId,
-      roomCode: room.code,
       playerId: player.playerId,
       sessionToken: player.sessionToken,
-      status: room.status,
+      ...this.#roomState(room),
     });
     this.#sendToOtherPlayers(room, player.playerId, {
       version: PROTOCOL_VERSION,
       type: 'player_joined',
-      roomCode: room.code,
       playerId: player.playerId,
+      ...this.#roomState(room),
     });
     return {
       roomCode: room.code,
@@ -223,12 +232,19 @@ export class RoomManager {
       version: PROTOCOL_VERSION,
       type: 'room_joined',
       requestId,
-      roomCode: room.code,
       playerId: player.playerId,
       sessionToken: player.sessionToken,
-      status: room.status,
+      ...this.#roomState(room),
     });
-    if (room.players.length === 2 && room.players.every((candidate) => candidate.ready)) {
+    this.#broadcast(room, {
+      version: PROTOCOL_VERSION,
+      type: 'room_state',
+      ...this.#roomState(room),
+    });
+    if (
+      room.players.length === room.maxPlayers &&
+      room.players.every((candidate) => candidate.ready)
+    ) {
       this.#startGame(room);
     }
   }
@@ -290,15 +306,7 @@ export class RoomManager {
     const { room, player } = membership;
     this.#clearReconnectTimer(player);
     player.connection = null;
-    if (room.status === 'PLAYING') {
-      this.#finishRoom(room, 'PLAYER_LEFT');
-    }
-    room.players.splice(room.players.indexOf(player), 1);
-    if (room.players.length === 0) {
-      this.#rooms.delete(room.code);
-    } else if (room.status !== 'FINISHED') {
-      room.status = 'WAITING';
-    }
+    this.#removePlayer(room, player, 'PLAYER_LEFT');
   }
 
   disconnect(connection: ClientConnection): void {
@@ -333,6 +341,8 @@ export class RoomManager {
       code: room.code,
       status: room.status,
       deckSize: room.deckSize,
+      mode: room.mode,
+      maxPlayers: room.maxPlayers,
       playerIds: room.players.map((player) => player.playerId),
       connectedPlayerIds: room.players
         .filter((player) => player.connection !== null)
@@ -364,12 +374,23 @@ export class RoomManager {
     };
   }
 
+  #roomState(room: Room): RoomStatePayload {
+    return {
+      roomCode: room.code,
+      mode: room.mode,
+      maxPlayers: room.maxPlayers,
+      playerIds: room.players.map((candidate) => candidate.playerId),
+      readyPlayerIds: room.players
+        .filter((candidate) => candidate.ready)
+        .map((candidate) => candidate.playerId),
+      status: room.status,
+    };
+  }
+
   #startGame(room: Room): void {
-    const first = room.players[0];
-    const second = room.players[1];
-    if (first === undefined || second === undefined) return;
+    if (room.players.length !== room.maxPlayers) return;
     room.gameState = this.#gameFactory(
-      [first.playerId, second.playerId],
+      room.players.map((player) => player.playerId),
       room.deckSize,
       room.rng,
     );
@@ -401,10 +422,9 @@ export class RoomManager {
       version: PROTOCOL_VERSION,
       type: 'room_joined',
       requestId,
-      roomCode: room.code,
       playerId: player.playerId,
       sessionToken: player.sessionToken,
-      status: room.status,
+      ...this.#roomState(room),
     });
     this.#broadcast(room, {
       version: PROTOCOL_VERSION,
@@ -433,13 +453,13 @@ export class RoomManager {
     return null;
   }
 
-  #broadcastState(room: Room, requestId: string, actorId: PlayerId): void {
+  #broadcastState(room: Room, requestId?: string, actorId?: PlayerId): void {
     for (const player of room.players) {
       this.#sendState(
         room,
         player,
         'game_state',
-        player.playerId === actorId ? requestId : undefined,
+        actorId !== undefined && player.playerId === actorId ? requestId : undefined,
       );
     }
   }
@@ -487,12 +507,34 @@ export class RoomManager {
     if (room === undefined || player === undefined || player.connection !== null) return;
     player.reconnectTimer = null;
     player.reconnectDeadline = null;
-    if (room.status === 'PLAYING') this.#finishRoom(room, 'DISCONNECT_TIMEOUT');
+    this.#removePlayer(room, player, 'DISCONNECT_TIMEOUT');
+  }
+
+  #removePlayer(room: Room, player: RoomPlayer, reason: FinishReason): void {
+    const wasPlaying = room.status === 'PLAYING' && room.gameState !== null;
+    if (wasPlaying && room.gameState !== null && room.players.length > 1) {
+      room.gameState = removePlayer(room.gameState, player.playerId, room.rng);
+    }
     room.players.splice(room.players.indexOf(player), 1);
     if (room.players.length === 0) {
       this.#rooms.delete(room.code);
-    } else if (room.status !== 'FINISHED') {
-      room.status = 'WAITING';
+      return;
+    }
+    if (wasPlaying && room.gameState !== null) {
+      if (room.gameState.winnerId !== null) {
+        this.#finishRoom(room, reason);
+      } else {
+        this.#broadcastState(room);
+      }
+      return;
+    }
+    if (room.status !== 'FINISHED') {
+      room.status = room.players.length === room.maxPlayers ? 'READY' : 'WAITING';
+      this.#broadcast(room, {
+        version: PROTOCOL_VERSION,
+        type: 'room_state',
+        ...this.#roomState(room),
+      });
     }
   }
 

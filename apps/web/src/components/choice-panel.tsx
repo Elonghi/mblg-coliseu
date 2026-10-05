@@ -15,6 +15,10 @@ type SwampAction = Extract<
   GameAction,
   { readonly type: 'CHOOSE_SWAMP_DISCARD' }
 >;
+type SwampTargetAction = Extract<
+  GameAction,
+  { readonly type: 'CHOOSE_SWAMP_TARGET' }
+>;
 type ForestAction = Extract<
   GameAction,
   { readonly type: 'CHOOSE_FOREST_RECOVERY' }
@@ -61,6 +65,35 @@ export function ChoicePanel({
         <span className="choice-kicker">Habilidade da Montanha</span>
         <h2>Escolha um terreno do {opponentLabel} para destruir</h2>
         <p>Os alvos válidos estão destacados no campo adversário.</p>
+      </aside>
+    );
+  }
+
+  if (pending.kind === 'SWAMP_TARGET') {
+    const targetActions = legalActions.filter(
+      (action): action is SwampTargetAction => action.type === 'CHOOSE_SWAMP_TARGET',
+    );
+    return (
+      <aside className="choice-panel choice-panel--swamp">
+        <span className="choice-kicker">Habilidade do Pântano</span>
+        <h2>Escolha qual adversário revelará a mão</h2>
+        <div className="choice-actions">
+          {targetActions.map((action) => {
+            const index = view.publicState.players.findIndex(
+              (player) => player.id === action.targetPlayerId,
+            );
+            return (
+              <button
+                key={action.targetPlayerId}
+                type="button"
+                className="secondary-button"
+                onClick={() => { onAction(action); }}
+              >
+                Jogador {String(index + 1)}
+              </button>
+            );
+          })}
+        </div>
       </aside>
     );
   }

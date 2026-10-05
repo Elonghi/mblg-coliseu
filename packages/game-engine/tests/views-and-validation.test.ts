@@ -24,9 +24,9 @@ describe('public/private state and action validation', () => {
     const publicState = getPublicState(state);
     const serialized = JSON.stringify(publicState);
 
-    expect(publicState.players[0].handCount).toBe(1);
-    expect(publicState.players[0].deckCount).toBe(1);
-    expect(publicState.players[0].field).toEqual([publicLand]);
+    expect(publicState.players[0]?.handCount).toBe(1);
+    expect(publicState.players[0]?.deckCount).toBe(1);
+    expect(publicState.players[0]?.field).toEqual([publicLand]);
     expect(serialized).not.toContain('HAND-SECRET');
     expect(serialized).not.toContain('DECK-SECRET');
   });

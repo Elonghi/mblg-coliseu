@@ -47,8 +47,17 @@ export function gameState(
   second: PlayerState,
   overrides: Partial<Omit<GameState, 'players'>> = {},
 ): GameState {
+  return multiplayerGameState([first, second], overrides);
+}
+
+export function multiplayerGameState(
+  players: readonly PlayerState[],
+  overrides: Partial<Omit<GameState, 'players'>> = {},
+): GameState {
+  const first = players[0];
+  if (first === undefined) throw new Error('A test game requires at least one player.');
   return {
-    players: [first, second],
+    players,
     currentPlayerId: first.id,
     startingPlayerId: first.id,
     turnNumber: 1,

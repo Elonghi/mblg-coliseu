@@ -13,10 +13,10 @@ describe('game setup, turns, and draws', () => {
     expect(state.startingPlayerId).toBe('p1');
     expect(state.currentPlayerId).toBe('p1');
     expect(state.phase).toBe('MAIN');
-    expect(state.players[0].hand).toHaveLength(5);
-    expect(state.players[1].hand).toHaveLength(5);
-    expect(state.players[0].deck).toHaveLength(20);
-    expect(state.players[1].deck).toHaveLength(20);
+    expect(state.players[0]?.hand).toHaveLength(5);
+    expect(state.players[1]?.hand).toHaveLength(5);
+    expect(state.players[0]?.deck).toHaveLength(20);
+    expect(state.players[1]?.deck).toHaveLength(20);
   });
 
   it('can select the second player as starter through injected RNG', () => {

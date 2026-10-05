@@ -76,6 +76,7 @@ describe('ChoicePanel', () => {
         kind: 'RESPONSE',
         controllerId: 'bot',
         responderId: 'human',
+        remainingResponderIds: [],
         cardId: attempted.id,
         landType: attempted.type,
       },

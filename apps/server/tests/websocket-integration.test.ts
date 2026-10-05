@@ -41,21 +41,22 @@ describe('WebSocket integration', () => {
     clients.push(first, second);
 
     first.send({
-      version: 1,
+      version: 2,
       type: 'create_room',
       requestId: 'create',
       deckSize: 25,
+      mode: '2P',
     });
     const created = await first.waitFor('room_created');
     second.send({
-      version: 1,
+      version: 2,
       type: 'join_room',
       requestId: 'join',
       roomCode: created.roomCode,
     });
     const joined = await second.waitFor('room_joined');
-    first.send({ version: 1, type: 'ready', requestId: 'ready-first' });
-    second.send({ version: 1, type: 'ready', requestId: 'ready-second' });
+    first.send({ version: 2, type: 'ready', requestId: 'ready-first' });
+    second.send({ version: 2, type: 'ready', requestId: 'ready-second' });
     const firstStarted = await first.waitFor('game_started');
     const secondStarted = await second.waitFor('game_started');
     const clientsByPlayer = new Map<PlayerId, TestClient>([
@@ -80,7 +81,7 @@ describe('WebSocket integration', () => {
       const action = chooseAutomatedAction(actorState);
       const requestId = `action-${String(actionNumber)}`;
       actor.send({
-        version: 1,
+        version: 2,
         type: 'game_action',
         requestId,
         action: toWireAction(action),
@@ -104,9 +105,89 @@ describe('WebSocket integration', () => {
     expect(firstFinished.reason).toBe('VICTORY');
     expect(manager.getRoom(created.roomCode)?.status).toBe('FINISHED');
 
-    first.send({ version: 1, type: 'ping', requestId: 'ping-after-game' });
+    first.send({ version: 2, type: 'ping', requestId: 'ping-after-game' });
     expect((await first.waitFor('pong')).requestId).toBe('ping-after-game');
   }, 20_000);
+
+  it('runs a complete authoritative game between four WebSocket clients', async () => {
+    let playerNumber = 0;
+    const manager = new RoomManager({
+      rngFactory: () => zeroRng,
+      roomCodeFactory: () => 'WS4444',
+      playerIdFactory: () => `four-player-${String(++playerNumber)}`,
+      sessionTokenFactory: () => `four-token-${String(playerNumber)}`,
+    });
+    app = await buildServer({ roomManager: manager });
+    const address = await app.listen({ host: '127.0.0.1', port: 0 });
+    const url = `${address.replace('http://', 'ws://')}/ws`;
+    const participants = await Promise.all(
+      Array.from({ length: 4 }, async () => TestClient.connect(url)),
+    );
+    clients.push(...participants);
+    const creator = participants[0];
+    if (creator === undefined) throw new Error('Missing room creator.');
+    creator.send({
+      version: 2,
+      type: 'create_room',
+      requestId: 'create-4p',
+      deckSize: 25,
+      mode: '4P',
+    });
+    const created = await creator.waitFor('room_created');
+    const playerIds: PlayerId[] = [created.playerId];
+    for (const [index, participant] of participants.slice(1).entries()) {
+      participant.send({
+        version: 2,
+        type: 'join_room',
+        requestId: `join-${String(index + 2)}`,
+        roomCode: created.roomCode,
+      });
+      playerIds.push((await participant.waitFor('room_joined')).playerId);
+    }
+    for (const [index, participant] of participants.entries()) {
+      participant.send({ version: 2, type: 'ready', requestId: `ready-${String(index + 1)}` });
+    }
+
+    const clientsByPlayer = new Map<PlayerId, TestClient>();
+    const states = new Map<PlayerId, ProjectedGameState>();
+    for (const [index, participant] of participants.entries()) {
+      const playerId = playerIds[index];
+      if (playerId === undefined) throw new Error('Missing joined player ID.');
+      clientsByPlayer.set(playerId, participant);
+      states.set(playerId, (await participant.waitFor('game_started')).state);
+    }
+
+    let winnerId: PlayerId | null = null;
+    for (let actionNumber = 1; actionNumber <= 2_000; actionNumber += 1) {
+      const observerState = states.get(created.playerId);
+      if (observerState === undefined) throw new Error('Missing observer state.');
+      const actorId = decisionPlayer(observerState);
+      const actor = clientsByPlayer.get(actorId);
+      const actorState = states.get(actorId);
+      if (actor === undefined || actorState === undefined) throw new Error('Missing action owner.');
+      actor.send({
+        version: 2,
+        type: 'game_action',
+        requestId: `four-action-${String(actionNumber)}`,
+        action: toWireAction(chooseAutomatedAction(actorState)),
+      });
+      for (const [playerId, participant] of clientsByPlayer) {
+        states.set(playerId, (await participant.waitFor('game_state')).state);
+      }
+      winnerId = states.get(created.playerId)?.publicGameState.winnerId ?? null;
+      if (winnerId !== null) break;
+    }
+
+    expect(playerIds).toContain(winnerId);
+    for (const participant of participants) {
+      const finished = await participant.waitFor('game_finished');
+      expect(finished).toMatchObject({ winnerId, reason: 'VICTORY' });
+    }
+    expect(manager.getRoom(created.roomCode)).toMatchObject({
+      mode: '4P',
+      status: 'FINISHED',
+    });
+  }, 30_000);
 });
 
 function decisionPlayer(state: ProjectedGameState): PlayerId {
@@ -122,6 +203,7 @@ function chooseAutomatedAction(state: ProjectedGameState): GameAction {
     'SKIP_FOREST_RECOVERY',
     'CHOOSE_ISLAND_TOP',
     'CHOOSE_MOUNTAIN_TARGET',
+    'CHOOSE_SWAMP_TARGET',
     'CHOOSE_SWAMP_DISCARD',
     'DRAW',
   ];

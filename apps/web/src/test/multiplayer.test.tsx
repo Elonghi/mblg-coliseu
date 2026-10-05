@@ -28,6 +28,29 @@ afterEach(() => {
 });
 
 describe('multiplayer frontend', () => {
+  it('creates a 4P room and shows its capacity in the lobby', async () => {
+    const harness = createHarness();
+    renderFlow(harness.service);
+    fireEvent.click(screen.getByRole('radio', { name: '4 jogadores' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Criar sala' }));
+    const socket = harness.sockets[0];
+    if (socket === undefined) throw new Error('Socket was not created.');
+    act(() => { socket.open(); });
+    await waitFor(() => {
+      expect(socket.sent[0]).toMatchObject({ type: 'create_room', mode: '4P' });
+    });
+    act(() => { socket.receive({
+      ...roomMessage('room_created'),
+      mode: '4P',
+      maxPlayers: 4,
+      playerIds: ['player-1'],
+    }); });
+
+    expect(await screen.findByText('Modo: 4 jogadores · Jogadores: 1/4'))
+      .toBeInTheDocument();
+    expect(screen.getAllByText('Aguardando')).toHaveLength(3);
+  });
+
   it('connects, creates a room, renders the lobby and sends a game action', async () => {
     const harness = createHarness();
     renderFlow(harness.service);
@@ -44,16 +67,35 @@ describe('multiplayer frontend', () => {
     expect(await screen.findByText('ROOM42')).toBeInTheDocument();
     expect(screen.getByText('Aguardando adversário…')).toBeInTheDocument();
     act(() => { socket.receive({
-      version: 1,
+      version: 2,
       type: 'player_joined',
       roomCode: 'ROOM42',
       playerId: 'player-2',
+      mode: '2P',
+      maxPlayers: 2,
+      playerIds: ['player-1', 'player-2'],
+      readyPlayerIds: [],
+      status: 'READY',
     }); });
     fireEvent.click(screen.getByRole('button', { name: 'Pronto' }));
     expect(socket.sent.at(-1)).toMatchObject({ type: 'ready' });
+    expect(screen.getByText('Você').closest('.lobby-player')).toHaveClass('lobby-player--ready');
+    expect(screen.getByText('Pronto')).toBeInTheDocument();
 
     act(() => { socket.receive({
-      version: 1,
+      version: 2,
+      type: 'room_state',
+      roomCode: 'ROOM42',
+      mode: '2P',
+      maxPlayers: 2,
+      playerIds: ['player-1', 'player-2'],
+      readyPlayerIds: ['player-1', 'player-2'],
+      status: 'READY',
+    }); });
+    expect(screen.getAllByText('Pronto')).toHaveLength(2);
+
+    act(() => { socket.receive({
+      version: 2,
       type: 'game_started',
       roomCode: 'ROOM42',
       state: projectedState(),
@@ -66,7 +108,7 @@ describe('multiplayer frontend', () => {
     });
 
     act(() => { socket.receive({
-      version: 1,
+      version: 2,
       type: 'action_rejected',
       requestId: 'action',
       code: 'NOT_YOUR_TURN',
@@ -93,7 +135,7 @@ describe('multiplayer frontend', () => {
     }); });
 
     act(() => { socket.receive({
-      version: 1,
+      version: 2,
       type: 'error',
       requestId: 'join',
       code: 'ROOM_NOT_FOUND',
@@ -122,7 +164,7 @@ describe('multiplayer frontend', () => {
     }); });
     act(() => { replacement.receive(roomMessage('room_joined', 'PLAYING')); });
     act(() => { replacement.receive({
-      version: 1,
+      version: 2,
       type: 'game_state',
       roomCode: 'ROOM42',
       state: projectedState(),
@@ -139,7 +181,7 @@ describe('multiplayer frontend', () => {
     const socket = await createAndStart(harness);
 
     act(() => { socket.receive({
-      version: 1,
+      version: 2,
       type: 'game_finished',
       roomCode: 'ROOM42',
       winnerId,
@@ -191,13 +233,18 @@ async function createAndStart(harness: ReturnType<typeof createHarness>): Promis
   await waitFor(() => { expect(socket.sent).toHaveLength(1); });
   act(() => { socket.receive(roomMessage('room_created')); });
   act(() => { socket.receive({
-    version: 1,
+    version: 2,
     type: 'player_joined',
     roomCode: 'ROOM42',
     playerId: 'player-2',
+    mode: '2P',
+    maxPlayers: 2,
+    playerIds: ['player-1', 'player-2'],
+    readyPlayerIds: [],
+    status: 'READY',
   }); });
   act(() => { socket.receive({
-    version: 1,
+    version: 2,
     type: 'game_started',
     roomCode: 'ROOM42',
     state: projectedState(),
@@ -209,15 +256,19 @@ async function createAndStart(harness: ReturnType<typeof createHarness>): Promis
 function roomMessage(
   type: 'room_created' | 'room_joined',
   status: 'WAITING' | 'PLAYING' = 'WAITING',
-): ServerMessage {
+): Extract<ServerMessage, { readonly type: 'room_created' | 'room_joined' }> {
   return {
-    version: 1,
+    version: 2,
     type,
     requestId: 'room',
     roomCode: 'ROOM42',
     playerId: 'player-1',
     sessionToken: 'session-1',
     status,
+    mode: '2P',
+    maxPlayers: 2,
+    playerIds: status === 'WAITING' ? ['player-1'] : ['player-1', 'player-2'],
+    readyPlayerIds: [],
   };
 }
 

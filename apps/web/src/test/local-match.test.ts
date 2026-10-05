@@ -74,7 +74,7 @@ describe('local match adapter', () => {
   });
   it('describes the land countered by an accepted Island response', () => {
     const state = createLocalMatch(25, zeroRng);
-    const countered = state.players[0].hand[0];
+    const countered = state.players[0]?.hand[0];
     expect(countered).toBeDefined();
     if (countered === undefined) throw new Error('Expected a card in hand.');
 
@@ -84,6 +84,7 @@ describe('local match adapter', () => {
         kind: 'RESPONSE',
         controllerId: HUMAN_PLAYER_ID,
         responderId: BOT_PLAYER_ID,
+        remainingResponderIds: [],
         cardId: countered.id,
         landType: countered.type,
       },
@@ -109,17 +110,20 @@ describe('local match adapter', () => {
 
   it('describes the land recovered from the Bot graveyard by Forest', () => {
     const state = createLocalMatch(25, zeroRng);
-    const recovered = state.players[1].hand[0];
+    const bot = state.players[1];
+    const human = state.players[0];
+    if (bot === undefined || human === undefined) throw new Error('Expected two players.');
+    const recovered = bot.hand[0];
     expect(recovered).toBeDefined();
     if (recovered === undefined) throw new Error('Expected a card in hand.');
 
     const recoveryState: GameState = {
       ...state,
       players: [
-        state.players[0],
+        human,
         {
-          ...state.players[1],
-          hand: state.players[1].hand.slice(1),
+          ...bot,
+          hand: bot.hand.slice(1),
           graveyard: [recovered],
         },
       ],

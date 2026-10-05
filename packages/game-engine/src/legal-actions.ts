@@ -34,20 +34,28 @@ export function getLegalActions(
     if (pending.controllerId !== actorId) {
       return [];
     }
-    const opponent = state.players.find((player) => player.id !== actorId);
-    if (opponent === undefined) {
-      return [];
-    }
+    const opponents = state.players.filter((player) => player.id !== actorId);
 
     switch (pending.kind) {
       case 'MOUNTAIN_TARGET':
-        return opponent.field.map((card) => ({
-          type: 'CHOOSE_MOUNTAIN_TARGET',
-          targetLandId: card.id,
-        }));
+        return opponents.flatMap((opponent) =>
+          opponent.field.map((card) => ({
+            type: 'CHOOSE_MOUNTAIN_TARGET' as const,
+            targetLandId: card.id,
+          })),
+        );
+      case 'SWAMP_TARGET':
+        return opponents
+          .filter((opponent) => opponent.hand.length > 0)
+          .map((opponent) => ({
+            type: 'CHOOSE_SWAMP_TARGET' as const,
+            targetPlayerId: opponent.id,
+          }));
       case 'SWAMP_DISCARD':
-        return opponent.hand.map((card) => ({
-          type: 'CHOOSE_SWAMP_DISCARD',
+        return (state.players.find(
+          (candidate) => candidate.id === pending.targetPlayerId,
+        )?.hand ?? []).map((card) => ({
+          type: 'CHOOSE_SWAMP_DISCARD' as const,
           targetCardId: card.id,
         }));
       case 'FOREST_RECOVERY':

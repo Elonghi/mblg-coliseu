@@ -31,6 +31,10 @@ body {
     linear-gradient(160deg, #111612 0%, #080a09 52%, #12100d 100%);
 }
 
+body:has(.setup-screen) {
+  overflow: hidden;
+}
+
 button,
 input {
   font: inherit;
@@ -57,10 +61,11 @@ p {
 .setup-screen {
   position: relative;
   display: grid;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   place-items: center;
   overflow: hidden;
-  padding: 2rem;
+  padding: clamp(0.6rem, 2.5dvh, 2rem);
 }
 
 .setup-screen::before,
@@ -96,7 +101,9 @@ p {
   position: relative;
   z-index: 1;
   width: min(100%, 48rem);
-  padding: clamp(2rem, 7vw, 5rem);
+  max-height: 100%;
+  padding: clamp(1.2rem, 4dvh, 3rem) clamp(1.2rem, 5vw, 3.5rem);
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 2rem;
   background:
@@ -121,7 +128,7 @@ p {
 .setup-panel h1 {
   margin: 0.45rem 0 1rem;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(3.2rem, 10vw, 6.4rem);
+  font-size: clamp(2.7rem, min(10vw, 10dvh), 5.6rem);
   font-weight: 500;
   letter-spacing: -0.07em;
   line-height: 0.92;
@@ -134,24 +141,24 @@ p {
 
 .setup-copy {
   max-width: 34rem;
-  margin: 0 auto 2.5rem;
+  margin: 0 auto clamp(0.8rem, 2.5dvh, 2rem);
   color: #c7c1b4;
   font-size: 1.05rem;
-  line-height: 1.7;
+  line-height: 1.5;
 }
 
 .deck-picker {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  margin: 0 0 1.5rem;
+  gap: clamp(0.5rem, 1.5dvh, 1rem);
+  margin: 0 0 clamp(0.7rem, 2dvh, 1.5rem);
   padding: 0;
   border: 0;
 }
 
 .deck-picker legend {
   width: 100%;
-  margin-bottom: 1rem;
+  margin-bottom: clamp(0.45rem, 1.2dvh, 1rem);
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: 700;
@@ -162,7 +169,7 @@ p {
 .deck-option {
   position: relative;
   display: grid;
-  padding: 1.25rem;
+  padding: clamp(0.65rem, 2dvh, 1.25rem);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.025);
@@ -191,7 +198,7 @@ p {
 
 .deck-option strong {
   font-family: Georgia, serif;
-  font-size: 2.4rem;
+  font-size: clamp(1.65rem, 5dvh, 2.4rem);
   line-height: 1;
 }
 
@@ -248,7 +255,7 @@ p {
 }
 
 .local-note {
-  margin: 1.2rem 0 0;
+  margin: clamp(0.45rem, 1.5dvh, 1.2rem) 0 0;
   color: #777b75;
   font-size: 0.8rem;
 }
@@ -331,6 +338,57 @@ p {
 
 .player-area--bot {
   opacity: 0.92;
+}
+
+.opponents-grid {
+  display: grid;
+  min-height: 0;
+  height: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.opponent-board {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.65rem;
+}
+
+.opponent-board--active {
+  border-color: rgba(220, 184, 92, 0.65);
+  background: rgba(220, 184, 92, 0.06);
+}
+
+.opponent-board > .field-zone {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.opponent-resources--inline {
+  position: static;
+  display: flex;
+  min-height: 2.5rem;
+  justify-content: space-between;
+  transform: none;
+}
+
+.player-area--multiple .opponent-board .player-heading {
+  margin-bottom: 0.1rem;
+}
+
+.player-area--multiple .opponent-board .hidden-hand .card-back {
+  width: 1.65rem;
+  height: 2.25rem;
+}
+
+.player-area--multiple .opponent-board .field-stack {
+  transform: scale(0.8);
+  transform-origin: bottom center;
 }
 
 .player-heading {
@@ -792,11 +850,11 @@ button.land-card:hover {
 
 @media (max-width: 760px) {
   .setup-screen {
-    padding: 1rem;
+    padding: clamp(0.45rem, 1.5dvh, 1rem);
   }
 
   .setup-panel {
-    padding: 2rem 1.2rem;
+    padding: clamp(0.8rem, 2.5dvh, 1.5rem) 1rem;
     border-radius: 1.25rem;
   }
 
@@ -830,7 +888,7 @@ button.land-card:hover {
 
 @media (max-width: 480px) {
   .deck-picker {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .brand-button {
@@ -1288,7 +1346,7 @@ body:has(.game-screen) {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(0.7rem, 2dvh, 2rem);
 }
 
 .connection-status {
@@ -1337,7 +1395,7 @@ body:has(.game-screen) {
 }
 
 .compact-picker .deck-option {
-  padding: 0.9rem;
+  padding: clamp(0.5rem, 1.3dvh, 0.9rem);
 }
 
 .multiplayer-actions {
@@ -1385,22 +1443,22 @@ body:has(.game-screen) {
 }
 
 .room-code {
-  margin: 0.6rem 0 0.8rem;
+  margin: 0.35rem 0 0.5rem;
   color: var(--gold-bright);
   font-family: Georgia, serif;
-  font-size: clamp(3rem, 12vw, 5.8rem);
+  font-size: clamp(2.5rem, min(12vw, 9dvh), 5rem);
   font-weight: 500;
   letter-spacing: 0.12em;
 }
 
 .copy-button {
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(0.6rem, 1.8dvh, 1.5rem);
 }
 
 .lobby-players {
   display: grid;
-  gap: 0.6rem;
-  margin: 0 auto 1.25rem;
+  gap: clamp(0.3rem, 0.8dvh, 0.6rem);
+  margin: 0 auto clamp(0.5rem, 1.4dvh, 1.25rem);
   text-align: left;
 }
 
@@ -1408,19 +1466,58 @@ body:has(.game-screen) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.8rem 1rem;
+  padding: clamp(0.5rem, 1.2dvh, 0.8rem) 1rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.7rem;
   background: rgba(255, 255, 255, 0.025);
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
 .lobby-players strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--green);
   font-size: 0.75rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.lobby-players strong i {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(127, 193, 122, 0.14);
+  font-size: 0.68rem;
+  font-style: normal;
 }
 
 .lobby-players strong.waiting {
   color: var(--muted);
+}
+
+.lobby-players strong.waiting i {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lobby-player--ready {
+  border-color: rgba(127, 193, 122, 0.58) !important;
+  background: linear-gradient(90deg, rgba(127, 193, 122, 0.15), rgba(127, 193, 122, 0.045)) !important;
+  box-shadow: inset 0 0 0 1px rgba(127, 193, 122, 0.08), 0 0 1.2rem rgba(127, 193, 122, 0.08);
+}
+
+.lobby-player--ready strong i {
+  background: var(--green);
+  color: #10200f;
+  box-shadow: 0 0 0.8rem rgba(127, 193, 122, 0.45);
+  animation: ready-pop 240ms ease-out;
+}
+
+@keyframes ready-pop {
+  from { transform: scale(0.55); }
+  to { transform: scale(1); }
 }
 
 .lobby-notice {
@@ -1430,7 +1527,7 @@ body:has(.game-screen) {
 }
 
 .text-button {
-  margin-top: 1rem;
+  margin-top: clamp(0.35rem, 1dvh, 1rem);
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -1502,7 +1599,7 @@ button:disabled {
 
 @media (max-width: 620px) {
   .multiplayer-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .multiplayer-heading {
@@ -1511,6 +1608,34 @@ button:disabled {
 
   .room-code {
     letter-spacing: 0.06em;
+  }
+}
+
+@media (max-height: 680px) {
+  .setup-panel h1 {
+    margin-block: 0.25rem 0.55rem;
+  }
+
+  .setup-copy {
+    font-size: 0.88rem;
+    line-height: 1.35;
+  }
+
+  .deck-option small {
+    display: none;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .setup-panel > .primary-button,
+  .setup-multiplayer-button {
+    min-height: 2.65rem;
+  }
+
+  .multiplayer-panel h1:not(.room-code),
+  .join-room-form h1 {
+    margin-block: 0.2rem 0.5rem;
+    font-size: clamp(2rem, 7dvh, 3rem);
   }
 }
 

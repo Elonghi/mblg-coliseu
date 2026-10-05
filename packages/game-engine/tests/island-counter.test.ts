@@ -193,6 +193,7 @@ describe('Island response', () => {
           kind: 'RESPONSE',
           controllerId: 'p1',
           responderId: 'p2',
+          remainingResponderIds: [],
           cardId: attempted.id,
           landType: attempted.type,
         },

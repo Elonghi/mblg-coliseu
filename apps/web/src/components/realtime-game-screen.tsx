@@ -54,8 +54,8 @@ export function RealtimeGameScreen() {
   };
   const ownId = multiplayer.credentials.playerId;
   const own = view.publicState.players.find((player) => player.id === ownId);
-  const opponent = view.publicState.players.find((player) => player.id !== ownId);
-  if (own === undefined || opponent === undefined) throw new Error('Projected game is missing a player.');
+  const opponents = view.publicState.players.filter((player) => player.id !== ownId);
+  if (own === undefined || opponents.length === 0) throw new Error('Projected game is missing a player.');
   const legalActions = projected.legalActions;
   const playActions = legalActions.filter(
     (action): action is Extract<GameAction, { type: 'PLAY_LAND' }> => action.type === 'PLAY_LAND',
@@ -75,7 +75,7 @@ export function RealtimeGameScreen() {
     ? 'Sua decisão é necessária'
     : multiplayer.submitting
       ? 'Aguardando servidor…'
-      : ownTurn ? 'Seu turno' : 'Turno do adversário';
+      : ownTurn ? 'Seu turno' : 'Turno de outro jogador';
 
   const selectOpponentField = (card: Card) => {
     const action = mountainByTarget.get(card.id);
@@ -100,37 +100,48 @@ export function RealtimeGameScreen() {
       {multiplayer.error !== null && <div className="error-banner" role="alert">{multiplayer.error}</div>}
       {multiplayer.notice !== null && <div className="multiplayer-notice">{multiplayer.notice}</div>}
 
-      <section className="player-area player-area--bot">
-        <div className="player-heading">
-          <div><span className="player-label">Oponente</span><h2>Adversário</h2></div>
-          <div className="resource-summary">
-            <span>Deck <strong>{opponent.deckCount}</strong></span>
-            <span>Mão <strong>{opponent.handCount}</strong></span>
-            <span>Trash <strong>{opponent.graveyard.length}</strong></span>
-          </div>
+      <section className={`player-area player-area--bot ${opponents.length > 1 ? 'player-area--multiple' : ''}`}>
+        <div className="opponents-grid">
+          {opponents.map((opponent) => {
+            const playerNumber = view.publicState.players.findIndex(
+              (player) => player.id === opponent.id,
+            ) + 1;
+            const isCurrent = view.publicState.currentPlayerId === opponent.id;
+            return (
+              <article key={opponent.id} className={`opponent-board ${isCurrent ? 'opponent-board--active' : ''}`}>
+                <div className="player-heading">
+                  <div><span className="player-label">Oponente</span><h2>Jogador {playerNumber}</h2></div>
+                  <div className="resource-summary">
+                    <span>Deck <strong>{opponent.deckCount}</strong></span>
+                    <span>Mão <strong>{opponent.handCount}</strong></span>
+                    <span>Trash <strong>{opponent.graveyard.length}</strong></span>
+                  </div>
+                </div>
+                <FieldZone
+                  title={`Campo do jogador ${String(playerNumber)}`}
+                  cards={opponent.field}
+                  highlightedIds={targetIds}
+                  actionLabel="Destruir"
+                  onCardSelect={selectOpponentField}
+                  emptyMessage="Nenhum terreno em campo"
+                />
+                <div className="opponent-resources opponent-resources--inline">
+                  <div className="hidden-hand" aria-label={`Mão do jogador ${String(playerNumber)}: ${String(opponent.handCount)}`}>
+                    {Array.from({ length: Math.min(opponent.handCount, 4) }, (_, index) => (
+                      <CardBack key={index} label="Carta oculta do adversário" />
+                    ))}
+                    {opponent.handCount > 4 && <span>+{opponent.handCount - 4}</span>}
+                  </div>
+                  <GraveyardDrawer
+                    label={`Cemitério do jogador ${String(playerNumber)}`}
+                    title={`Trash do jogador ${String(playerNumber)}`}
+                    cards={opponent.graveyard}
+                  />
+                </div>
+              </article>
+            );
+          })}
         </div>
-        <div className="opponent-resources">
-          <div className="hidden-hand" aria-label={`Mão do adversário: ${String(opponent.handCount)}`}>
-            {Array.from({ length: Math.min(opponent.handCount, 7) }, (_, index) => (
-              <CardBack key={index} label="Carta oculta do adversário" />
-            ))}
-            {opponent.handCount > 7 && <span>+{opponent.handCount - 7}</span>}
-          </div>
-          <div className="deck-stack"><CardBack label="Deck do adversário" /><strong>{opponent.deckCount}</strong></div>
-        </div>
-        <FieldZone
-          title="Campo do adversário"
-          cards={opponent.field}
-          highlightedIds={targetIds}
-          actionLabel="Destruir"
-          onCardSelect={selectOpponentField}
-          emptyMessage="O adversário ainda não baixou terrenos"
-        />
-        <GraveyardDrawer
-          label="Cemitério adversário"
-          title="Trash adversário"
-          cards={opponent.graveyard}
-        />
       </section>
 
       <div className="arena-divider"><span /><b>{statusText.toUpperCase()}</b><span /></div>

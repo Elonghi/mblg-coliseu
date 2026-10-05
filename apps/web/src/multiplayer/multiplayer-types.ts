@@ -6,7 +6,8 @@ import type {
   PublicGameState,
 } from '@mblg-coliseu/game-engine';
 
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
+export type RoomMode = '2P' | '4P';
 
 export interface ProjectedGameState {
   readonly publicGameState: PublicGameState;
@@ -24,6 +25,7 @@ export type WireGameAction =
       readonly discardCardId: string;
     }
   | { readonly type: 'mountain_target'; readonly targetCardId: string }
+  | { readonly type: 'swamp_target'; readonly targetPlayerId: PlayerId }
   | { readonly type: 'swamp_discard'; readonly targetCardId: string }
   | { readonly type: 'forest_recovery'; readonly targetCardId: string }
   | { readonly type: 'skip_forest_recovery' }
@@ -36,7 +38,11 @@ interface ClientBase {
 }
 
 export type ClientMessage =
-  | (ClientBase & { readonly type: 'create_room'; readonly deckSize: DeckSize })
+  | (ClientBase & {
+      readonly type: 'create_room';
+      readonly deckSize: DeckSize;
+      readonly mode: RoomMode;
+    })
   | (ClientBase & {
       readonly type: 'join_room';
       readonly roomCode: string;
@@ -55,19 +61,26 @@ interface ServerBase {
   readonly requestId?: string;
 }
 
+export interface RoomStatePayload {
+  readonly roomCode: string;
+  readonly mode: RoomMode;
+  readonly maxPlayers: 2 | 4;
+  readonly playerIds: readonly PlayerId[];
+  readonly readyPlayerIds: readonly PlayerId[];
+  readonly status: RoomStatus;
+}
+
 export type ServerMessage =
-  | (ServerBase & {
+  | (ServerBase & RoomStatePayload & {
       readonly type: 'room_created' | 'room_joined';
-      readonly roomCode: string;
       readonly playerId: PlayerId;
       readonly sessionToken: string;
-      readonly status: RoomStatus;
     })
-  | (ServerBase & {
+  | (ServerBase & RoomStatePayload & {
       readonly type: 'player_joined';
-      readonly roomCode: string;
       readonly playerId: PlayerId;
     })
+  | (ServerBase & RoomStatePayload & { readonly type: 'room_state' })
   | (ServerBase & {
       readonly type: 'game_started' | 'game_state';
       readonly roomCode: string;

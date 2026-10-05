@@ -3,6 +3,7 @@ import type {
   ConnectionStatus,
   ServerMessage,
 } from './multiplayer-types.js';
+import { PROTOCOL_VERSION } from './multiplayer-types.js';
 
 export type SocketFactory = (url: string) => WebSocket;
 export type MessageListener = (message: ServerMessage) => void;
@@ -10,7 +11,7 @@ export type StatusListener = (status: ConnectionStatus) => void;
 
 function isServerMessage(value: unknown): value is ServerMessage {
   return typeof value === 'object' && value !== null &&
-    'version' in value && value.version === 1 &&
+    'version' in value && value.version === PROTOCOL_VERSION &&
     'type' in value && typeof value.type === 'string';
 }
 

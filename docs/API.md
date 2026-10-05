@@ -61,3 +61,29 @@ Exemplos:
 ```
 
 Os contratos finais devem ser tipados em TypeScript.
+
+## Salas realtime
+
+O protocolo WebSocket v2 cria salas com modo explícito:
+
+```json
+{
+  "version": 2,
+  "type": "create_room",
+  "requestId": "uuid",
+  "deckSize": 25,
+  "mode": "4P"
+}
+```
+
+As mensagens de lobby incluem `mode`, `maxPlayers`, `playerIds`,
+`readyPlayerIds` e `status`.
+
+No modo `4P`, o Pântano possui a intenção intermediária:
+
+```json
+{
+  "type": "CHOOSE_SWAMP_TARGET",
+  "targetPlayerId": "player-3"
+}
+```

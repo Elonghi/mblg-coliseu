@@ -14,6 +14,8 @@ import type {
   GameResult,
   MultiplayerCredentials,
   ProjectedGameState,
+  RoomMode,
+  RoomStatePayload,
   ServerMessage,
 } from './multiplayer-types.js';
 
@@ -23,7 +25,7 @@ export interface MultiplayerState {
   readonly page: MultiplayerPage;
   readonly connectionStatus: ConnectionStatus;
   readonly credentials: MultiplayerCredentials | null;
-  readonly opponentConnected: boolean;
+  readonly room: RoomStatePayload | null;
   readonly localReady: boolean;
   readonly gameState: ProjectedGameState | null;
   readonly result: GameResult | null;
@@ -35,7 +37,7 @@ export interface MultiplayerState {
 interface MultiplayerContextValue extends MultiplayerState {
   readonly showJoin: () => void;
   readonly showMenu: () => void;
-  readonly createRoom: (deckSize: DeckSize) => Promise<void>;
+  readonly createRoom: (deckSize: DeckSize, mode: RoomMode) => Promise<void>;
   readonly joinRoom: (roomCode: string) => Promise<void>;
   readonly ready: () => void;
   readonly sendAction: (action: GameAction) => void;
@@ -52,7 +54,7 @@ function initialState(service: MultiplayerService): MultiplayerState {
     page: credentials === null ? 'menu' : 'lobby',
     connectionStatus: credentials === null ? 'disconnected' : 'lost',
     credentials,
-    opponentConnected: false,
+    room: null,
     localReady: false,
     gameState: null,
     result: null,
@@ -116,10 +118,10 @@ export function MultiplayerProvider({
     setState((current) => ({ ...current, page: 'menu', error: null }));
   }, []);
 
-  const createRoom = useCallback(async (deckSize: DeckSize) => {
+  const createRoom = useCallback(async (deckSize: DeckSize, mode: RoomMode) => {
     setState((current) => ({ ...current, submitting: true, error: null }));
     try {
-      await service.createRoom(deckSize);
+      await service.createRoom(deckSize, mode);
     } catch {
       setState((current) => ({
         ...current,
@@ -220,6 +222,14 @@ function reduceServerMessage(
   state: MultiplayerState,
   message: ServerMessage,
 ): MultiplayerState {
+  const roomFrom = (roomMessage: RoomStatePayload): RoomStatePayload => ({
+    roomCode: roomMessage.roomCode,
+    mode: roomMessage.mode,
+    maxPlayers: roomMessage.maxPlayers,
+    playerIds: roomMessage.playerIds,
+    readyPlayerIds: roomMessage.readyPlayerIds,
+    status: roomMessage.status,
+  });
   switch (message.type) {
     case 'room_created':
       navigate('/multiplayer');
@@ -231,7 +241,7 @@ function reduceServerMessage(
           playerId: message.playerId,
           sessionToken: message.sessionToken,
         },
-        opponentConnected: false,
+        room: roomFrom(message),
         submitting: false,
         notice: 'Aguardando adversário…',
         error: null,
@@ -245,13 +255,18 @@ function reduceServerMessage(
           playerId: message.playerId,
           sessionToken: message.sessionToken,
         },
-        opponentConnected: message.status !== 'WAITING',
+        room: roomFrom(message),
         submitting: false,
         notice: message.status === 'PLAYING' ? 'Sessão recuperada.' : state.notice,
         error: null,
       };
     case 'player_joined':
-      return { ...state, opponentConnected: true, notice: 'Adversário conectado.' };
+    case 'room_state':
+      return {
+        ...state,
+        room: roomFrom(message),
+        notice: `${String(message.playerIds.length)}/${String(message.maxPlayers)} jogadores na sala.`,
+      };
     case 'game_started':
     case 'game_state':
       navigate(`/game/${message.roomCode}`);
@@ -282,13 +297,11 @@ function reduceServerMessage(
     case 'player_disconnected':
       return {
         ...state,
-        opponentConnected: false,
         notice: 'O adversário perdeu a conexão. Aguardando reconexão…',
       };
     case 'player_reconnected':
       return {
         ...state,
-        opponentConnected: true,
         notice: message.playerId === state.credentials?.playerId
           ? 'Sua sessão foi recuperada.'
           : 'O adversário reconectou.',

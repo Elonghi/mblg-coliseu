@@ -13,14 +13,11 @@ import type {
 import { hasWon } from './victory.js';
 
 function replacePlayer(state: GameState, replacement: PlayerState): GameState {
-  const first = state.players[0];
-  const second = state.players[1];
   return {
     ...state,
-    players:
-      first.id === replacement.id
-        ? [replacement, second]
-        : [first, replacement],
+    players: state.players.map((candidate) =>
+      candidate.id === replacement.id ? replacement : candidate,
+    ),
   };
 }
 
@@ -29,12 +26,15 @@ function replacePlayers(
   firstReplacement: PlayerState,
   secondReplacement: PlayerState,
 ): GameState {
+  const replacements = new Map([
+    [firstReplacement.id, firstReplacement],
+    [secondReplacement.id, secondReplacement],
+  ]);
   return {
     ...state,
-    players:
-      state.players[0].id === firstReplacement.id
-        ? [firstReplacement, secondReplacement]
-        : [secondReplacement, firstReplacement],
+    players: state.players.map(
+      (candidate) => replacements.get(candidate.id) ?? candidate,
+    ),
   };
 }
 
@@ -50,12 +50,27 @@ function requiredPlayer(state: GameState, playerId: PlayerId): PlayerState {
   return result;
 }
 
-function opponent(state: GameState, playerId: PlayerId): PlayerState {
-  const result = state.players.find((candidate) => candidate.id !== playerId);
-  if (result === undefined) {
-    throw new Error('A game must contain exactly two distinct players.');
+function opponents(state: GameState, playerId: PlayerId): readonly PlayerState[] {
+  return state.players.filter((candidate) => candidate.id !== playerId);
+}
+
+function playersAfter(state: GameState, playerId: PlayerId): readonly PlayerState[] {
+  const index = state.players.findIndex((candidate) => candidate.id === playerId);
+  if (index < 0) {
+    throw new Error('Player no longer exists in the game.');
   }
-  return result;
+  return Array.from(
+    { length: state.players.length - 1 },
+    (_, offset) => state.players[(index + offset + 1) % state.players.length],
+  ).filter((candidate): candidate is PlayerState => candidate !== undefined);
+}
+
+function nextPlayer(state: GameState, playerId: PlayerId): PlayerState {
+  const next = playersAfter(state, playerId)[0];
+  if (next === undefined) {
+    throw new Error('A game turn requires at least two active players.');
+  }
+  return next;
 }
 
 function success(state: GameState): ActionResult {
@@ -122,10 +137,10 @@ function enterPendingLand(
     return victoryState;
   }
 
-  const target = opponent(victoryState, controllerId);
+  const otherPlayers = opponents(victoryState, controllerId);
   switch (card.type) {
     case 'MOUNTAIN':
-      return target.field.length === 0
+      return otherPlayers.every((target) => target.field.length === 0)
         ? { ...victoryState, pending: null }
         : {
             ...victoryState,
@@ -136,17 +151,26 @@ function enterPendingLand(
         ...replacePlayer(victoryState, drawCard(requiredPlayer(victoryState, controllerId), rng)),
         pending: null,
       };
-    case 'SWAMP':
-      return target.hand.length === 0
-        ? { ...victoryState, pending: null }
-        : {
+    case 'SWAMP': {
+      const eligibleTargets = otherPlayers.filter((target) => target.hand.length > 0);
+      if (eligibleTargets.length === 0) {
+        return { ...victoryState, pending: null };
+      }
+      const onlyTarget = eligibleTargets[0];
+      return eligibleTargets.length === 1 && onlyTarget !== undefined
+        ? {
             ...victoryState,
             pending: {
               kind: 'SWAMP_DISCARD',
               controllerId,
-              targetPlayerId: target.id,
+              targetPlayerId: onlyTarget.id,
             },
+          }
+        : {
+            ...victoryState,
+            pending: { kind: 'SWAMP_TARGET', controllerId },
           };
+    }
     case 'FOREST': {
       const currentController = requiredPlayer(victoryState, controllerId);
       return currentController.graveyard.length === 0
@@ -193,6 +217,17 @@ function handlePendingAction(
       );
     }
     if (action.type === 'PASS_RESPONSE') {
+      const nextResponderId = pending.remainingResponderIds[0];
+      if (nextResponderId !== undefined) {
+        return success({
+          ...state,
+          pending: {
+            ...pending,
+            responderId: nextResponderId,
+            remainingResponderIds: pending.remainingResponderIds.slice(1),
+          },
+        });
+      }
       return success(
         enterPendingLand(
           { ...state, pending: null },
@@ -282,11 +317,13 @@ function handlePendingAction(
           'A Mountain target must be chosen.',
         );
       }
-      const targetPlayer = opponent(state, actorId);
-      const target = targetPlayer.field.find(
+      const targetPlayer = opponents(state, actorId).find((candidate) =>
+        candidate.field.some((card) => card.id === action.targetLandId),
+      );
+      const target = targetPlayer?.field.find(
         (card) => card.id === action.targetLandId,
       );
-      if (target === undefined) {
+      if (targetPlayer === undefined || target === undefined) {
         return failure(
           state,
           'INVALID_TARGET',
@@ -300,6 +337,33 @@ function handlePendingAction(
           graveyard: [...targetPlayer.graveyard, target],
         }),
         pending: null,
+      });
+    }
+    case 'SWAMP_TARGET': {
+      if (action.type !== 'CHOOSE_SWAMP_TARGET') {
+        return failure(
+          state,
+          'WRONG_PENDING_ACTION',
+          'An opponent must be chosen for the Swamp ability.',
+        );
+      }
+      const targetPlayer = opponents(state, actorId).find(
+        (candidate) => candidate.id === action.targetPlayerId,
+      );
+      if (targetPlayer === undefined || targetPlayer.hand.length === 0) {
+        return failure(
+          state,
+          'INVALID_TARGET',
+          'Swamp must target an opponent with at least one card in hand.',
+        );
+      }
+      return success({
+        ...state,
+        pending: {
+          kind: 'SWAMP_DISCARD',
+          controllerId: actorId,
+          targetPlayerId: targetPlayer.id,
+        },
       });
     }
     case 'SWAMP_DISCARD': {
@@ -386,13 +450,139 @@ function handlePendingAction(
   }
 }
 
-export function createGame(options: CreateGameOptions): GameState {
-  const [firstId, secondId] = options.playerIds;
-  if (firstId === secondId) {
-    throw new Error('A game requires two distinct player IDs.');
+function successorAfterRemoval(
+  state: GameState,
+  removedPlayerId: PlayerId,
+  remainingPlayers: readonly PlayerState[],
+): PlayerState | undefined {
+  const removedIndex = state.players.findIndex(
+    (candidate) => candidate.id === removedPlayerId,
+  );
+  if (removedIndex < 0) return undefined;
+  for (let offset = 1; offset < state.players.length; offset += 1) {
+    const candidate = state.players[(removedIndex + offset) % state.players.length];
+    const remaining = remainingPlayers.find((playerState) => playerState.id === candidate?.id);
+    if (remaining !== undefined) return remaining;
+  }
+  return undefined;
+}
+
+export function removePlayer(
+  state: GameState,
+  removedPlayerId: PlayerId,
+  rng: RandomSource,
+): GameState {
+  if (!state.players.some((candidate) => candidate.id === removedPlayerId)) {
+    return state;
   }
 
-  const startingPlayerIndex = randomIndex(options.rng, 2);
+  const remainingPlayers = state.players.filter(
+    (candidate) => candidate.id !== removedPlayerId,
+  );
+  if (remainingPlayers.length === 0) {
+    return { ...state, players: [], pending: null, winnerId: null };
+  }
+  if (remainingPlayers.length === 1) {
+    const winner = remainingPlayers[0];
+    if (winner === undefined) return state;
+    return {
+      ...state,
+      players: remainingPlayers,
+      currentPlayerId: winner.id,
+      startingPlayerId: state.startingPlayerId === removedPlayerId
+        ? winner.id
+        : state.startingPlayerId,
+      pending: null,
+      winnerId: winner.id,
+    };
+  }
+
+  const successor = successorAfterRemoval(state, removedPlayerId, remainingPlayers);
+  let nextState: GameState = {
+    ...state,
+    players: remainingPlayers,
+    startingPlayerId: state.startingPlayerId === removedPlayerId
+      ? (successor?.id ?? remainingPlayers[0]?.id ?? state.startingPlayerId)
+      : state.startingPlayerId,
+  };
+  if (state.currentPlayerId === removedPlayerId) {
+    if (successor === undefined) {
+      throw new Error('Unable to find the next active player after removal.');
+    }
+    nextState = {
+      ...nextState,
+      currentPlayerId: successor.id,
+      turnNumber: state.turnNumber + 1,
+      phase: 'DRAW',
+      landPlayedThisTurn: false,
+    };
+  }
+
+  const pending = state.pending;
+  if (pending === null) return nextState;
+  if (pending.controllerId === removedPlayerId) {
+    return { ...nextState, pending: null };
+  }
+
+  if (pending.kind === 'RESPONSE') {
+    const priority = [pending.responderId, ...pending.remainingResponderIds].filter(
+      (candidate) =>
+        candidate !== removedPlayerId &&
+        remainingPlayers.some((playerState) => playerState.id === candidate),
+    );
+    const responderId = priority[0];
+    if (responderId === undefined) {
+      return enterPendingLand(
+        { ...nextState, pending: null },
+        pending.controllerId,
+        pending.cardId,
+        rng,
+      );
+    }
+    return {
+      ...nextState,
+      pending: {
+        ...pending,
+        responderId,
+        remainingResponderIds: priority.slice(1),
+      },
+    };
+  }
+
+  if (
+    pending.kind === 'MOUNTAIN_TARGET' &&
+    opponents(nextState, pending.controllerId).every(
+      (candidate) => candidate.field.length === 0,
+    )
+  ) {
+    return { ...nextState, pending: null };
+  }
+  if (
+    pending.kind === 'SWAMP_DISCARD' &&
+    pending.targetPlayerId === removedPlayerId
+  ) {
+    return { ...nextState, pending: null };
+  }
+  if (
+    pending.kind === 'SWAMP_TARGET' &&
+    opponents(nextState, pending.controllerId).every(
+      (candidate) => candidate.hand.length === 0,
+    )
+  ) {
+    return { ...nextState, pending: null };
+  }
+  return nextState;
+}
+
+export function createGame(options: CreateGameOptions): GameState {
+  if (options.playerIds.length !== 2 && options.playerIds.length !== 4) {
+    throw new Error('A game requires exactly two or four players.');
+  }
+  if (new Set(options.playerIds).size !== options.playerIds.length) {
+    throw new Error('A game requires distinct player IDs.');
+  }
+
+  const startingPlayerIndex = randomIndex(options.rng, options.playerIds.length);
   const players = options.playerIds.map((id) => {
     const shuffledDeck = createDeck(id, options.deckSize, options.rng);
     return {
@@ -402,7 +592,7 @@ export function createGame(options: CreateGameOptions): GameState {
       field: [],
       graveyard: [],
     } satisfies PlayerState;
-  }) as unknown as GameState['players'];
+  });
 
   const startingPlayer = players[startingPlayerIndex];
   if (startingPlayer === undefined) {
@@ -441,6 +631,7 @@ export function applyAction(
     action.type === 'PASS_RESPONSE' ||
     action.type === 'COUNTER_WITH_ISLAND' ||
     action.type === 'CHOOSE_MOUNTAIN_TARGET' ||
+    action.type === 'CHOOSE_SWAMP_TARGET' ||
     action.type === 'CHOOSE_SWAMP_DISCARD' ||
     action.type === 'CHOOSE_FOREST_RECOVERY' ||
     action.type === 'SKIP_FOREST_RECOVERY' ||
@@ -485,17 +676,24 @@ export function applyAction(
           'The played land must be in the actor hand.',
         );
       }
-      return success({
-        ...state,
-        landPlayedThisTurn: true,
-        pending: {
-          kind: 'RESPONSE',
-          controllerId: actorId,
-          responderId: opponent(state, actorId).id,
-          cardId: card.id,
-          landType: card.type,
-        },
-      });
+      const responders = playersAfter(state, actorId);
+      const firstResponder = responders[0];
+      const nextState = { ...state, landPlayedThisTurn: true };
+      return success(
+        firstResponder === undefined
+          ? enterPendingLand(nextState, actorId, card.id, rng)
+          : {
+              ...nextState,
+              pending: {
+                kind: 'RESPONSE',
+                controllerId: actorId,
+                responderId: firstResponder.id,
+                remainingResponderIds: responders.slice(1).map((responder) => responder.id),
+                cardId: card.id,
+                landType: card.type,
+              },
+            },
+      );
     }
     case 'END_TURN': {
       if (state.phase !== 'MAIN') {
@@ -505,10 +703,10 @@ export function applyAction(
           'The turn can only end during the main phase.',
         );
       }
-      const nextPlayer = opponent(state, actorId);
+      const followingPlayer = nextPlayer(state, actorId);
       return success({
         ...state,
-        currentPlayerId: nextPlayer.id,
+        currentPlayerId: followingPlayer.id,
         turnNumber: state.turnNumber + 1,
         phase: 'DRAW',
         landPlayedThisTurn: false,

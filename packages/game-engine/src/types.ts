@@ -31,11 +31,16 @@ export type PendingAction =
       readonly kind: 'RESPONSE';
       readonly controllerId: PlayerId;
       readonly responderId: PlayerId;
+      readonly remainingResponderIds: readonly PlayerId[];
       readonly cardId: string;
       readonly landType: LandType;
     }
   | {
       readonly kind: 'MOUNTAIN_TARGET';
+      readonly controllerId: PlayerId;
+    }
+  | {
+      readonly kind: 'SWAMP_TARGET';
       readonly controllerId: PlayerId;
     }
   | {
@@ -54,7 +59,7 @@ export type PendingAction =
     };
 
 export interface GameState {
-  readonly players: readonly [PlayerState, PlayerState];
+  readonly players: readonly PlayerState[];
   readonly currentPlayerId: PlayerId;
   readonly startingPlayerId: PlayerId;
   readonly turnNumber: number;
@@ -69,7 +74,7 @@ export interface RandomSource {
 }
 
 export interface CreateGameOptions {
-  readonly playerIds: readonly [PlayerId, PlayerId];
+  readonly playerIds: readonly PlayerId[];
   readonly deckSize: DeckSize;
   readonly rng: RandomSource;
 }
@@ -86,6 +91,10 @@ export type GameAction =
   | {
       readonly type: 'CHOOSE_MOUNTAIN_TARGET';
       readonly targetLandId: string;
+    }
+  | {
+      readonly type: 'CHOOSE_SWAMP_TARGET';
+      readonly targetPlayerId: PlayerId;
     }
   | {
       readonly type: 'CHOOSE_SWAMP_DISCARD';
@@ -133,11 +142,18 @@ export interface PublicPlayerState {
 }
 
 export type PublicPendingAction =
-  | Exclude<PendingAction, { readonly kind: 'ISLAND_TOP' }>
+  | Exclude<PendingAction, { readonly kind: 'ISLAND_TOP' | 'RESPONSE' }>
+  | {
+      readonly kind: 'RESPONSE';
+      readonly controllerId: PlayerId;
+      readonly responderId: PlayerId;
+      readonly cardId: string;
+      readonly landType: LandType;
+    }
   | { readonly kind: 'ISLAND_TOP'; readonly controllerId: PlayerId };
 
 export interface PublicGameState {
-  readonly players: readonly [PublicPlayerState, PublicPlayerState];
+  readonly players: readonly PublicPlayerState[];
   readonly currentPlayerId: PlayerId;
   readonly startingPlayerId: PlayerId;
   readonly turnNumber: number;

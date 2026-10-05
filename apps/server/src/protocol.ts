@@ -1,7 +1,8 @@
 import type { DeckSize, GameAction, PlayerId } from '@mblg-coliseu/game-engine';
 import type { ProjectedGameState } from './projection.js';
 
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
+export type RoomMode = '2P' | '4P';
 
 export type WireGameAction =
   | { readonly type: 'draw' }
@@ -13,6 +14,7 @@ export type WireGameAction =
       readonly discardCardId: string;
     }
   | { readonly type: 'mountain_target'; readonly targetCardId: string }
+  | { readonly type: 'swamp_target'; readonly targetPlayerId: PlayerId }
   | { readonly type: 'swamp_discard'; readonly targetCardId: string }
   | { readonly type: 'forest_recovery'; readonly targetCardId: string }
   | { readonly type: 'skip_forest_recovery' }
@@ -28,6 +30,7 @@ export type ClientMessage =
   | (ClientMessageBase & {
       readonly type: 'create_room';
       readonly deckSize: DeckSize;
+      readonly mode: RoomMode;
     })
   | (ClientMessageBase & {
       readonly type: 'join_room';
@@ -45,31 +48,36 @@ export type ClientMessage =
 export type RoomStatus = 'WAITING' | 'READY' | 'PLAYING' | 'FINISHED';
 export type FinishReason = 'VICTORY' | 'PLAYER_LEFT' | 'DISCONNECT_TIMEOUT';
 
+export interface RoomStatePayload {
+  readonly roomCode: string;
+  readonly mode: RoomMode;
+  readonly maxPlayers: 2 | 4;
+  readonly playerIds: readonly PlayerId[];
+  readonly readyPlayerIds: readonly PlayerId[];
+  readonly status: RoomStatus;
+}
+
 interface ServerMessageBase {
   readonly version: typeof PROTOCOL_VERSION;
   readonly requestId?: string;
 }
 
 export type ServerMessage =
-  | (ServerMessageBase & {
+  | (ServerMessageBase & RoomStatePayload & {
       readonly type: 'room_created';
-      readonly roomCode: string;
       readonly playerId: PlayerId;
       readonly sessionToken: string;
-      readonly status: RoomStatus;
     })
-  | (ServerMessageBase & {
+  | (ServerMessageBase & RoomStatePayload & {
       readonly type: 'room_joined';
-      readonly roomCode: string;
       readonly playerId: PlayerId;
       readonly sessionToken: string;
-      readonly status: RoomStatus;
     })
-  | (ServerMessageBase & {
+  | (ServerMessageBase & RoomStatePayload & {
       readonly type: 'player_joined';
-      readonly roomCode: string;
       readonly playerId: PlayerId;
     })
+  | (ServerMessageBase & RoomStatePayload & { readonly type: 'room_state' })
   | (ServerMessageBase & {
       readonly type: 'game_started';
       readonly roomCode: string;
@@ -159,6 +167,11 @@ function parseWireAction(value: unknown): WireGameAction | null {
       return hasOnlyKeys(value, ['type', 'targetCardId']) && nonEmptyString(value.targetCardId)
         ? { type: value.type, targetCardId: value.targetCardId }
         : null;
+    case 'swamp_target':
+      return hasOnlyKeys(value, ['type', 'targetPlayerId']) &&
+        nonEmptyString(value.targetPlayerId)
+        ? { type: value.type, targetPlayerId: value.targetPlayerId }
+        : null;
     case 'island_top':
       return hasOnlyKeys(value, ['type', 'placement']) &&
         (value.placement === 'top' || value.placement === 'bottom')
@@ -193,18 +206,25 @@ export function decodeClientMessage(raw: string): DecodeResult {
   }
   switch (value.type) {
     case 'create_room':
-      return hasOnlyKeys(value, ['version', 'requestId', 'type', 'deckSize']) &&
-        (value.deckSize === 25 || value.deckSize === 50)
-        ? {
-            ok: true,
-            message: {
-              version: PROTOCOL_VERSION,
-              requestId,
-              type: value.type,
-              deckSize: value.deckSize,
-            },
-          }
-        : { ok: false, requestId, code: 'INVALID_DECK_SIZE', message: 'deckSize must be 25 or 50.' };
+      if (!hasOnlyKeys(value, ['version', 'requestId', 'type', 'deckSize', 'mode'])) {
+        return { ok: false, requestId, code: 'INVALID_MESSAGE', message: 'Message has unexpected fields.' };
+      }
+      if (value.deckSize !== 25 && value.deckSize !== 50) {
+        return { ok: false, requestId, code: 'INVALID_DECK_SIZE', message: 'deckSize must be 25 or 50.' };
+      }
+      if (value.mode !== '2P' && value.mode !== '4P') {
+        return { ok: false, requestId, code: 'INVALID_ROOM_MODE', message: 'mode must be 2P or 4P.' };
+      }
+      return {
+        ok: true,
+        message: {
+          version: PROTOCOL_VERSION,
+          requestId,
+          type: value.type,
+          deckSize: value.deckSize,
+          mode: value.mode,
+        },
+      };
     case 'join_room':
       if (!hasOnlyKeys(value, ['version', 'requestId', 'type', 'roomCode', 'sessionToken'])) {
         return { ok: false, requestId, code: 'INVALID_MESSAGE', message: 'Message has unexpected fields.' };
@@ -273,6 +293,8 @@ export function toGameAction(action: WireGameAction): GameAction {
       };
     case 'mountain_target':
       return { type: 'CHOOSE_MOUNTAIN_TARGET', targetLandId: action.targetCardId };
+    case 'swamp_target':
+      return { type: 'CHOOSE_SWAMP_TARGET', targetPlayerId: action.targetPlayerId };
     case 'swamp_discard':
       return { type: 'CHOOSE_SWAMP_DISCARD', targetCardId: action.targetCardId };
     case 'forest_recovery':

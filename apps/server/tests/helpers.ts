@@ -58,18 +58,44 @@ export interface PlayingRoom {
   readonly secondCredentials: PlayerCredentials;
 }
 
+export interface FourPlayerRoom {
+  readonly manager: RoomManager;
+  readonly connections: readonly MemoryConnection[];
+  readonly credentials: readonly PlayerCredentials[];
+}
+
 export function createPlayingRoom(
   manager = deterministicManager(),
 ): PlayingRoom {
   const first = new MemoryConnection();
   const second = new MemoryConnection();
-  const firstCredentials = manager.createRoom(first, 25, 'create-1');
+  const firstCredentials = manager.createRoom(first, 25, '2P', 'create-1');
   if (firstCredentials === null) throw new Error('Expected room creation.');
   const secondCredentials = manager.joinRoom(second, firstCredentials.roomCode, 'join-1');
   if (secondCredentials === null) throw new Error('Expected room join.');
   manager.ready(first, 'ready-1');
   manager.ready(second, 'ready-2');
   return { manager, first, second, firstCredentials, secondCredentials };
+}
+
+export function createFourPlayerRoom(
+  manager = deterministicManager(),
+): FourPlayerRoom {
+  const connections = Array.from({ length: 4 }, () => new MemoryConnection());
+  const first = connections[0];
+  if (first === undefined) throw new Error('Missing first connection.');
+  const created = manager.createRoom(first, 25, '4P', 'create-4p');
+  if (created === null) throw new Error('Expected 4P room creation.');
+  const credentials: PlayerCredentials[] = [created];
+  for (const [index, connection] of connections.slice(1).entries()) {
+    const joined = manager.joinRoom(connection, created.roomCode, `join-4p-${String(index + 2)}`);
+    if (joined === null) throw new Error('Expected player to join 4P room.');
+    credentials.push(joined);
+  }
+  for (const [index, connection] of connections.entries()) {
+    manager.ready(connection, `ready-4p-${String(index + 1)}`);
+  }
+  return { manager, connections, credentials };
 }
 
 export function toWireAction(action: GameAction): WireGameAction {
@@ -88,6 +114,8 @@ export function toWireAction(action: GameAction): WireGameAction {
       };
     case 'CHOOSE_MOUNTAIN_TARGET':
       return { type: 'mountain_target', targetCardId: action.targetLandId };
+    case 'CHOOSE_SWAMP_TARGET':
+      return { type: 'swamp_target', targetPlayerId: action.targetPlayerId };
     case 'CHOOSE_SWAMP_DISCARD':
       return { type: 'swamp_discard', targetCardId: action.targetCardId };
     case 'CHOOSE_FOREST_RECOVERY':

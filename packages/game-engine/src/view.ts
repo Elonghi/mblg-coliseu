@@ -14,6 +14,15 @@ function publicPending(state: GameState): PublicPendingAction | null {
       controllerId: state.pending.controllerId,
     };
   }
+  if (state.pending?.kind === 'RESPONSE') {
+    return {
+      kind: state.pending.kind,
+      controllerId: state.pending.controllerId,
+      responderId: state.pending.responderId,
+      cardId: state.pending.cardId,
+      landType: state.pending.landType,
+    };
+  }
   return state.pending;
 }
 
@@ -25,7 +34,7 @@ export function getPublicState(state: GameState): PublicGameState {
       handCount: player.hand.length,
       field: player.field,
       graveyard: player.graveyard,
-    })) as unknown as PublicGameState['players'],
+    })),
     currentPlayerId: state.currentPlayerId,
     startingPlayerId: state.startingPlayerId,
     turnNumber: state.turnNumber,

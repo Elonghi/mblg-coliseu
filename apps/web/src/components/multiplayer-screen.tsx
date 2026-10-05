@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { DeckSize } from '@mblg-coliseu/game-engine';
+import type { RoomMode } from '../multiplayer/multiplayer-types.js';
 import { useMultiplayer } from '../multiplayer/multiplayer-context.js';
 import { ConnectionStatus } from './connection-status.js';
 
 export function MultiplayerScreen({ onHome }: { readonly onHome: () => void }) {
   const multiplayer = useMultiplayer();
   const [deckSize, setDeckSize] = useState<DeckSize>(25);
+  const [mode, setMode] = useState<RoomMode>('2P');
   const [roomCode, setRoomCode] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -59,12 +61,27 @@ export function MultiplayerScreen({ onHome }: { readonly onHome: () => void }) {
                 </label>
               ))}
             </fieldset>
+            <fieldset className="deck-picker compact-picker">
+              <legend>Quantidade de jogadores</legend>
+              {(['2P', '4P'] as const).map((option) => (
+                <label key={option} className={mode === option ? 'deck-option selected' : 'deck-option'}>
+                  <input
+                    type="radio"
+                    name="multiplayer-mode"
+                    aria-label={`${option === '2P' ? '2' : '4'} jogadores`}
+                    checked={mode === option}
+                    onChange={() => { setMode(option); }}
+                  />
+                  <strong>{option === '2P' ? '2' : '4'}</strong><span>jogadores</span>
+                </label>
+              ))}
+            </fieldset>
             <div className="multiplayer-actions">
               <button
                 type="button"
                 className="primary-button"
                 disabled={multiplayer.submitting}
-                onClick={() => void multiplayer.createRoom(deckSize)}
+                onClick={() => void multiplayer.createRoom(deckSize, mode)}
               >
                 Criar sala
               </button>
@@ -115,17 +132,36 @@ export function MultiplayerScreen({ onHome }: { readonly onHome: () => void }) {
               {multiplayer.credentials.roomCode}
             </h1>
             <p className="setup-copy">Compartilhe este código com seu adversário.</p>
+            {multiplayer.room !== null && (
+              <p className="lobby-notice">
+                Modo: {multiplayer.room.maxPlayers} jogadores · Jogadores:{' '}
+                {multiplayer.room.playerIds.length}/{multiplayer.room.maxPlayers}
+              </p>
+            )}
             <button type="button" className="secondary-button copy-button" onClick={() => void copyRoomCode()}>
               {copied ? 'Código copiado' : 'Copiar código'}
             </button>
-            <div className="lobby-players">
-              <div><span>Você</span><strong>✓ conectado</strong></div>
-              <div>
-                <span>Adversário</span>
-                <strong className={multiplayer.opponentConnected ? '' : 'waiting'}>
-                  {multiplayer.opponentConnected ? '✓ conectado' : 'aguardando…'}
-                </strong>
-              </div>
+            <div className="lobby-players" aria-live="polite">
+              {Array.from({ length: multiplayer.room?.maxPlayers ?? 2 }, (_, index) => {
+                const playerId = multiplayer.room?.playerIds[index];
+                const isLocal = playerId === multiplayer.credentials?.playerId;
+                const isReady = playerId !== undefined && (
+                  multiplayer.room?.readyPlayerIds.includes(playerId) === true ||
+                  (isLocal && multiplayer.localReady)
+                );
+                return (
+                  <div
+                    key={playerId ?? `empty-${String(index)}`}
+                    className={isReady ? 'lobby-player lobby-player--ready' : 'lobby-player'}
+                  >
+                    <span>{isLocal ? 'Você' : `Jogador ${String(index + 1)}`}</span>
+                    <strong className={playerId === undefined ? 'waiting' : isReady ? 'ready' : ''}>
+                      <i aria-hidden="true">{isReady ? '✓' : playerId === undefined ? '…' : '●'}</i>
+                      {playerId === undefined ? 'Aguardando' : isReady ? 'Pronto' : 'Conectado'}
+                    </strong>
+                  </div>
+                );
+              })}
             </div>
             {multiplayer.notice !== null && <p className="lobby-notice">{multiplayer.notice}</p>}
             {multiplayer.connectionStatus === 'lost' ? (
@@ -136,10 +172,12 @@ export function MultiplayerScreen({ onHome }: { readonly onHome: () => void }) {
               <button
                 type="button"
                 className="primary-button"
-                disabled={multiplayer.localReady || !multiplayer.opponentConnected}
+                disabled={multiplayer.localReady ||
+                  multiplayer.room === null ||
+                  multiplayer.room.playerIds.length !== multiplayer.room.maxPlayers}
                 onClick={multiplayer.ready}
               >
-                {multiplayer.localReady ? 'Aguardando adversário…' : 'Pronto'}
+                {multiplayer.localReady ? 'Aguardando jogadores…' : 'Pronto'}
               </button>
             )}
             <button type="button" className="text-button" onClick={multiplayer.leaveRoom}>Cancelar</button>

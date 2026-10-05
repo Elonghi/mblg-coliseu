@@ -5,6 +5,7 @@ import {
 import type {
   ClientMessage,
   MultiplayerCredentials,
+  RoomMode,
   ServerMessage,
   WireGameAction,
 } from './multiplayer-types.js';
@@ -39,6 +40,8 @@ export function toWireAction(action: GameAction): WireGameAction {
       };
     case 'CHOOSE_MOUNTAIN_TARGET':
       return { type: 'mountain_target', targetCardId: action.targetLandId };
+    case 'CHOOSE_SWAMP_TARGET':
+      return { type: 'swamp_target', targetPlayerId: action.targetPlayerId };
     case 'CHOOSE_SWAMP_DISCARD':
       return { type: 'swamp_discard', targetCardId: action.targetCardId };
     case 'CHOOSE_FOREST_RECOVERY':
@@ -86,9 +89,9 @@ export class MultiplayerService {
     this.#client.disconnect();
   }
 
-  async createRoom(deckSize: DeckSize): Promise<void> {
+  async createRoom(deckSize: DeckSize, mode: RoomMode): Promise<void> {
     await this.connect();
-    this.#send({ type: 'create_room', deckSize });
+    this.#send({ type: 'create_room', deckSize, mode });
   }
 
   async joinRoom(roomCode: string): Promise<void> {

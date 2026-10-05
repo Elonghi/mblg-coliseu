@@ -39,7 +39,7 @@ function dispatchMessage(
 ): void {
   switch (message.type) {
     case 'create_room':
-      manager.createRoom(connection, message.deckSize, message.requestId);
+      manager.createRoom(connection, message.deckSize, message.mode, message.requestId);
       return;
     case 'join_room':
       manager.joinRoom(

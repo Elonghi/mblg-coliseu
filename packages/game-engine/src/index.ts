@@ -1,5 +1,5 @@
 export { createDeck } from './deck.js';
-export { applyAction, createGame } from './engine.js';
+export { applyAction, createGame, removePlayer } from './engine.js';
 export { getLegalActions } from './legal-actions.js';
 export { shuffle } from './rng.js';
 export { LAND_TYPES } from './types.js';

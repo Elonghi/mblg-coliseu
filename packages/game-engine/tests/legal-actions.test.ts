@@ -33,6 +33,7 @@ describe('legal action projection', () => {
           kind: 'RESPONSE',
           controllerId: 'p1',
           responderId: 'p2',
+          remainingResponderIds: [],
           cardId: attempted.id,
           landType: attempted.type,
         },

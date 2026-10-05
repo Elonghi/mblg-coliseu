@@ -48,8 +48,8 @@ describe('multiplayer state projection', () => {
     const firstView = projectGameState(state, 'one');
     const serialized = JSON.stringify(firstView);
 
-    expect(firstView.privatePlayerState.hand).toEqual(state.players[0].hand);
-    expect(firstView.publicGameState.players[1].handCount).toBe(1);
+    expect(firstView.privatePlayerState.hand).toEqual(state.players[0]?.hand);
+    expect(firstView.publicGameState.players[1]?.handCount).toBe(1);
     expect(serialized).not.toContain('two-secret');
     expect(serialized).not.toContain('two-top-secret');
     expect(firstView.privatePlayerState.deckTop).toBeNull();
@@ -63,7 +63,7 @@ describe('multiplayer state projection', () => {
     });
 
     expect(getPrivatePlayerState(state, 'one').revealedOpponentHand).toEqual(
-      state.players[1].hand,
+      state.players[1]?.hand,
     );
     expect(getPrivatePlayerState(state, 'two').revealedOpponentHand).toBeNull();
   });

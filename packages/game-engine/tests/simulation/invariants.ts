@@ -34,7 +34,10 @@ export function validateGameInvariants(
   state: GameState,
   deckSize: DeckSize,
 ): void {
-  invariant(state.players[0].id !== state.players[1].id, 'player IDs are unique');
+  invariant(
+    new Set(state.players.map((player) => player.id)).size === state.players.length,
+    'player IDs are unique',
+  );
   invariant(
     state.players.some((player) => player.id === state.currentPlayerId),
     'current player belongs to game',

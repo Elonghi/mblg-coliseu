@@ -7,7 +7,7 @@ import {
 describe('versioned WebSocket protocol', () => {
   it('decodes a client intention and associates its request id', () => {
     const result = decodeClientMessage(JSON.stringify({
-      version: 1,
+      version: 2,
       type: 'game_action',
       requestId: 'request-1',
       action: { type: 'mountain_target', targetCardId: 'target-1' },
@@ -16,7 +16,7 @@ describe('versioned WebSocket protocol', () => {
     expect(result).toEqual({
       ok: true,
       message: {
-        version: 1,
+        version: 2,
         type: 'game_action',
         requestId: 'request-1',
         action: { type: 'mountain_target', targetCardId: 'target-1' },
@@ -32,7 +32,7 @@ describe('versioned WebSocket protocol', () => {
 
   it('rejects state, result and winner fields supplied by a client', () => {
     const result = decodeClientMessage(JSON.stringify({
-      version: 1,
+      version: 2,
       type: 'game_action',
       requestId: 'request-2',
       action: { type: 'end_turn' },
@@ -44,16 +44,26 @@ describe('versioned WebSocket protocol', () => {
 
   it('rejects unsupported versions and malformed actions', () => {
     expect(decodeClientMessage(JSON.stringify({
-      version: 2,
+      version: 1,
       type: 'ping',
       requestId: 'wrong-version',
     }))).toMatchObject({ ok: false, code: 'UNSUPPORTED_VERSION' });
 
     expect(decodeClientMessage(JSON.stringify({
-      version: 1,
+      version: 2,
       type: 'game_action',
       requestId: 'bad-action',
       action: { type: 'play_land' },
     }))).toMatchObject({ ok: false, code: 'INVALID_ACTION' });
+  });
+
+  it('requires an explicit 2P or 4P mode when creating a room', () => {
+    expect(decodeClientMessage(JSON.stringify({
+      version: 2,
+      type: 'create_room',
+      requestId: 'create-mode',
+      deckSize: 25,
+      mode: '8P',
+    }))).toMatchObject({ ok: false, code: 'INVALID_ROOM_MODE' });
   });
 });
