@@ -68,13 +68,13 @@ web com a URL `wss://<host-do-servidor>/ws` e execute um novo deploy do frontend
 
 ## Publicação no Coolify
 
-O arquivo `docker-compose.coolify.yml` cria dois serviços:
+O arquivo `docker-compose.yaml` cria dois serviços:
 
 - `web`: build do React, arquivos estáticos e proxy Nginx;
 - `server`: Fastify e WebSocket, disponível apenas na rede interna.
 
 No Coolify, crie um recurso **Docker Compose** usando a branch `main` e informe
-`/docker-compose.coolify.yml` como caminho do Compose. Associe somente o serviço
+`/docker-compose.yaml` como caminho do Compose. Associe somente o serviço
 `web`, porta `80`, ao domínio `https://basiclandgame.com`.
 
 O build usa por padrão `wss://basiclandgame.com/ws`. Para outro domínio,
