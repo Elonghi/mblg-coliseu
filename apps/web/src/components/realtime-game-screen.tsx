@@ -5,6 +5,7 @@ import { CardZone } from './card-zone.js';
 import { ChoicePanel } from './choice-panel.js';
 import { ConnectionStatus } from './connection-status.js';
 import { FieldZone } from './field-zone.js';
+import { GraveyardDrawer } from './graveyard-drawer.js';
 import { CardBack } from './land-card.js';
 
 export function RealtimeGameScreen() {
@@ -125,10 +126,11 @@ export function RealtimeGameScreen() {
           onCardSelect={selectOpponentField}
           emptyMessage="O adversário ainda não baixou terrenos"
         />
-        <details className="graveyard-drawer">
-          <summary>Cemitério adversário · {opponent.graveyard.length}</summary>
-          <CardZone title="Trash adversário" cards={opponent.graveyard} compact />
-        </details>
+        <GraveyardDrawer
+          label="Cemitério adversário"
+          title="Trash adversário"
+          cards={opponent.graveyard}
+        />
       </section>
 
       <div className="arena-divider"><span /><b>{statusText.toUpperCase()}</b><span /></div>
@@ -146,10 +148,12 @@ export function RealtimeGameScreen() {
         <FieldZone title="Seu campo" cards={own.field} emptyMessage="Baixe um terreno para começar" />
         <div className="human-resources">
           <div className="deck-stack"><CardBack label="Seu deck" /><strong>{own.deckCount}</strong></div>
-          <details className="graveyard-drawer" open={view.publicState.pending?.kind === 'FOREST_RECOVERY'}>
-            <summary>Seu cemitério · {own.graveyard.length}</summary>
-            <CardZone title="Seu trash" cards={own.graveyard} compact />
-          </details>
+          <GraveyardDrawer
+            label="Seu cemitério"
+            title="Seu trash"
+            cards={own.graveyard}
+            openWhenActive={view.publicState.pending?.kind === 'FOREST_RECOVERY'}
+          />
         </div>
         <CardZone
           title="Sua mão"

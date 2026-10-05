@@ -10,6 +10,7 @@ import { ActivityFeed } from './activity-feed.js';
 import { CardZone } from './card-zone.js';
 import { FieldZone } from './field-zone.js';
 import { ChoicePanel } from './choice-panel.js';
+import { GraveyardDrawer } from './graveyard-drawer.js';
 import { CardBack } from './land-card.js';
 
 interface GameScreenProps {
@@ -154,14 +155,11 @@ export function GameScreen({
           onCardSelect={selectBotField}
           emptyMessage="O Bot ainda não baixou terrenos"
         />
-        <details className="graveyard-drawer">
-          <summary>Cemitério do Bot · {bot.graveyard.length}</summary>
-          <CardZone
-            title="Trash do Bot"
-            cards={bot.graveyard}
-            compact
-          />
-        </details>
+        <GraveyardDrawer
+          label="Cemitério do Bot"
+          title="Trash do Bot"
+          cards={bot.graveyard}
+        />
       </section>
 
       <div className="arena-divider">
@@ -190,14 +188,12 @@ export function GameScreen({
             <CardBack label="Seu deck" />
             <strong>{human.deckCount}</strong>
           </div>
-          <details className="graveyard-drawer" open={pending?.kind === 'FOREST_RECOVERY'}>
-            <summary>Seu cemitério · {human.graveyard.length}</summary>
-            <CardZone
-              title="Seu trash"
-              cards={human.graveyard}
-              compact
-            />
-          </details>
+          <GraveyardDrawer
+            label="Seu cemitério"
+            title="Seu trash"
+            cards={human.graveyard}
+            openWhenActive={pending?.kind === 'FOREST_RECOVERY'}
+          />
         </div>
 
         <CardZone
